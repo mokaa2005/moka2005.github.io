@@ -27,7 +27,7 @@
         --cyan-soft: #e7f0fb;
       }
       @media (prefers-color-scheme: dark) {
-        :root {
+        :root:not([data-theme="light"]) {
           --bg: #12161c;
           --band: #171d26;
           --surface: #1b222d;
@@ -44,6 +44,25 @@
           --cyan-soft: #16283f;
         }
       }
+      /* تم تاریک دستی — با دکمه «تاریک» در نوار بالا فعال می‌شود و روی تنظیم سیستم هم غلبه می‌کند */
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --bg: #12161c;
+        --band: #171d26;
+        --surface: #1b222d;
+        --surface2: #232c39;
+        --text: #e8edf2;
+        --dim: #9aa7b4;
+        --border: #33404f;
+        --navy: #8fc1e9;
+        --link: #6db3e8;
+        --link-hover: #a5d3f5;
+        --cell-hover: #232f42;
+        --strip: #54687a;
+        --amber: #e3b341;
+        --cyan-soft: #16283f;
+      }
+      :root[data-theme="light"] { color-scheme: light; }
       * { box-sizing: border-box; }
       html { -webkit-text-size-adjust: 100%; }
       body {
@@ -118,6 +137,15 @@
         background: rgba(255,255,255,.12); color: #fff; padding: .4rem .7rem; font-size: .88rem; font-weight: 600;
       }
       form.hsearch button:hover, form.hsearch input:focus { background: rgba(255,255,255,.22); }
+      .themebtn {
+        flex: none; display: inline-flex; align-items: center; gap: .4rem;
+        border: 1px solid rgba(255,255,255,.65); border-radius: 4px;
+        background: rgba(255,255,255,.12); color: #fff;
+        padding: .4rem .65rem; font-size: .85rem; font-weight: 600;
+      }
+      .themebtn:hover { background: rgba(255,255,255,.22); }
+      .themebtn svg { width: 1rem; height: 1rem; flex: none; }
+      .themebtn .fa-lbl { font-family: "Vazirmatn", Tahoma, sans-serif; font-weight: 500; }
       @media (max-width: 900px) {
         nav.mainnav { order: 3; width: 100%; overflow-x: auto; scrollbar-width: none; padding-bottom: .3rem; }
         nav.mainnav::-webkit-scrollbar { display: none; }
@@ -161,7 +189,8 @@
       }
       .seg button + button { border-left: 1px solid var(--border); }
       .seg button.on { background: var(--navy); color: #fff; }
-      @media (prefers-color-scheme: dark) { .seg button.on { background: #2c5a82; } }
+      @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg button.on { background: #2c5a82; } }
+      :root[data-theme="dark"] .seg button.on { background: #2c5a82; }
       .seg .seg-static { color: var(--dim); cursor: default; }
       .matrix-scroll { overflow-x: auto; padding: 0 .5rem .6rem; }
       .mtable { display: flex; gap: .35rem; align-items: flex-start; direction: ltr; min-width: min-content; }
@@ -262,7 +291,8 @@
         border-radius: 8px; padding: .9rem;
       }
       .fa-box h3 { margin: 0; font-size: .9rem; color: var(--red); }
-      @media (prefers-color-scheme: dark) { .fa-box h3 { color: #f0836a; } }
+      @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .fa-box h3 { color: #f0836a; } }
+      :root[data-theme="dark"] .fa-box h3 { color: #f0836a; }
       .fa-box .gloss { font-size: .98rem; font-weight: 700; line-height: 1.9; margin: .3rem 0 0; }
       .fa-box .explain { font-size: .9rem; line-height: 1.9; margin: .3rem 0 0; }
       .fa-box .soc { border-top: 1px solid var(--border); margin-top: .6rem; padding-top: .6rem; font-size: .85rem; line-height: 1.85; }
@@ -334,8 +364,41 @@
             placeholder="Phishing, T1059…" />
           <button type="submit">Search</button>
         </form>
+        <button type="button" class="themebtn" id="themeBtn" aria-pressed="false" title="تغییر تم روشن و تاریک">
+          <svg id="themeIconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+          <svg id="themeIconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:none"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>
+          <span class="fa-lbl" id="themeLbl">تاریک</span>
+        </button>
       </div>
     </header>
+    <script>
+    /* دکمه تم تاریک/روشن — تا وقتی کاربر انتخاب نکرده، تم از تنظیم سیستم پیروی می‌کند؛
+       انتخاب دستی فقط در همین نشست می‌ماند و روی هر دو حالت سیستم غلبه می‌کند. */
+    (function () {
+      var btn = document.getElementById("themeBtn");
+      if (!btn) return;
+      var root = document.documentElement;
+      var mq = window.matchMedia("(prefers-color-scheme: dark)");
+      function effective() {
+        var t = root.getAttribute("data-theme");
+        if (t === "dark" || t === "light") return t;
+        return mq.matches ? "dark" : "light";
+      }
+      function paint() {
+        var dark = effective() === "dark";
+        document.getElementById("themeIconMoon").style.display = dark ? "none" : "";
+        document.getElementById("themeIconSun").style.display = dark ? "" : "none";
+        document.getElementById("themeLbl").textContent = dark ? "روشن" : "تاریک";
+        btn.setAttribute("aria-pressed", dark ? "true" : "false");
+      }
+      btn.addEventListener("click", function () {
+        root.setAttribute("data-theme", effective() === "dark" ? "light" : "dark");
+        paint();
+      });
+      if (mq.addEventListener) mq.addEventListener("change", paint);
+      paint();
+    })();
+    </script>
     <main id="app">
       <p class="center-note">در حال بارگذاری داده‌های MITRE ATT&amp;CK…</p>
       <noscript><p class="center-note">برای نمایش داده‌ها جاوااسکریپت لازم است. اگر این فایل را داخل پیش‌نمایش یک برنامه (مثل تلگرام یا مدیریت فایل) باز کرده‌ای، آن را مستقیم با مرورگر Chrome یا Safari باز کن.</p></noscript>
