@@ -382,7 +382,7 @@
         <nav class="mainnav" id="mainNav" aria-label="بخش‌های اصلی"></nav>
         <form class="hsearch" id="searchForm">
           <input id="searchInput" type="search" dir="ltr" class="en" autocomplete="off"
-            aria-label="جستجو در کل ATT&amp;CK (نام انگلیسی یا ID)"
+            aria-label="جستجو در کل ATT&amp;CK (نام انگلیسی، فارسی یا ID)"
             placeholder="Phishing, T1059…" />
           <button type="submit">Search</button>
         </form>
@@ -440,7 +440,7 @@
       app.innerHTML = '<div class="page-wrap"><div class="fa-box" style="margin:2rem 0">' +
         '<h3>داده‌ها بارگذاری نشد</h3>' +
         '<p class="explain">همه داده‌های این سایت داخل همین یک فایل است؛ برای نمایش، بخش داده انتهای فایل باید کامل رسیده و اجرا شده باشد. اگر این پیام را می‌بینی، یکی از این‌ها رخ داده است:</p>' +
-        '<p class="explain">۱) فایل کامل دانلود نشده است — حجم فایل کامل حدود ۴٫۲ مگابایت است؛ اگر حجم فایلت کمتر است، دوباره دانلودش کن.<br>' +
+        '<p class="explain">۱) فایل کامل دانلود نشده است — حجم فایل کامل حدود ۴٫۵ مگابایت است؛ اگر حجم فایلت کمتر است، دوباره دانلودش کن.<br>' +
         '۲) فایل را داخل پیش‌نمایش یک برنامه (مثل تلگرام یا مدیریت فایل) باز کرده‌ای که جاوااسکریپت را اجرا نمی‌کند — فایل را مستقیم با مرورگر Chrome یا Safari باز کن.<br>' +
         '۳) مرورگرت خیلی قدیمی است — با یک مرورگر به‌روز دوباره امتحان کن.</p>' +
         (msg ? '<p class="small muted" dir="ltr" style="text-align:left">Error: ' + String(msg).replace(/[<>&"]/g, "") + '</p>' : "") +
@@ -507,7 +507,7 @@
     var showSubs = false;        // نمایش همه زیرتکنیک‌ها در ماتریس (مثل دکمه سایت MITRE)
     var matrixFit = true;        // نمای پیش‌فرض ماتریس: هر ۱۵ تاکتیک در یک صفحه، بدون اسکرول چپ و راست
 
-    var KIND_FA = { technique: "تکنیک", group: "گروه مهاجم", software: "نرم‌افزار / بدافزار", mitigation: "راهکار مقابله", campaign: "کمپین", datasource: "منبع داده" };
+    var KIND_FA = { technique: "تکنیک", tactic: "تاکتیک", group: "گروه مهاجم", software: "نرم‌افزار / بدافزار", mitigation: "راهکار مقابله", campaign: "کمپین", datasource: "منبع داده" };
     var KIND_EN = { technique: "Techniques", group: "Groups", software: "Software", mitigation: "Mitigations", campaign: "Campaigns", datasource: "Data Sources" };
     var LIST_TABS = [
       { kind: "technique", fa: "تکنیک‌ها" },
@@ -612,6 +612,7 @@
     }
     function routeFor(kind, id) {
       return kind === "technique" ? "#/technique/" + encodeURIComponent(id)
+        : kind === "tactic" ? "#/tactic/" + encodeURIComponent(id)
         : "#/entity/" + kind + "/" + encodeURIComponent(id);
     }
 
@@ -920,12 +921,22 @@
       if (kind === "group") return (item.a || []).join(" · ");
       if (kind === "software") return item.k || "";
       if (kind === "campaign") return [item.f, item.l].filter(Boolean).join(" → ");
-      if (kind === "technique") return (item.t || []).map(function (sn) { var tr = TACTIC.get(sn); return tr ? tr.n : sn; }).join(" · ");
+      if (kind === "technique") return item.s ? "Sub-technique of " + (NAME.get(item.p) || item.p) : (item.t || []).map(function (sn) { var tr = TACTIC.get(sn); return tr ? tr.n : sn; }).join(" · ");
       return "";
     }
     function listItems(kind) {
-      if (kind === "technique") return IDX.techniques.filter(function (t) { return !t.s; });
-      return IDX[{ group: "groups", software: "software", mitigation: "mitigations", campaign: "campaigns", datasource: "datasources" }[kind]] || [];
+      function byN(a, b) { return a.n.localeCompare(b.n); }
+      if (kind === "technique") {
+        /* همه تکنیک‌ها و زیرتکنیک‌ها، الفبایی؛ هر زیرتکنیک درست زیر تکنیکِ والدش */
+        var parents = IDX.techniques.filter(function (t) { return !t.s; }).sort(byN);
+        var out = [];
+        parents.forEach(function (p) {
+          out.push(p);
+          (SUBS.get(p.i) || []).slice().sort(byN).forEach(function (s) { out.push(s); });
+        });
+        return out;
+      }
+      return (IDX[{ group: "groups", software: "software", mitigation: "mitigations", campaign: "campaigns", datasource: "datasources" }[kind]] || []).slice().sort(byN);
     }
     function renderList(app, kind) {
       var tab = LIST_TABS.find(function (x) { return x.kind === kind; });
@@ -937,7 +948,10 @@
       html += '<div class="listbox" id="entityList">';
       items.forEach(function (it) {
         var sub = listSub(kind, it);
-        html += '<div style="display:flex;align-items:center;gap:.25rem;padding-inline-start:.25rem" data-search="' + esc((it.n + " " + it.i + " " + sub).toLowerCase()) + '">' +
+        var faTxt = kind === "technique" ? ((IDX.fa[it.i] || {}).fa || "")
+          : kind === "mitigation" ? ((IDX.faMit || {})[it.i] || "")
+          : kind === "datasource" ? ((IDX.faDs || {})[it.i] || "") : "";
+        html += '<div style="display:flex;align-items:center;gap:.25rem;padding-inline-start:.25rem" data-search="' + esc(normText(it.n + " " + it.i + " " + sub + " " + faTxt)) + '">' +
           '<button type="button" class="rowbtn" data-nav="' + routeFor(kind, it.i) + '">' + idBadge(it.i) +
           '<span style="flex:1;min-width:0"><span dir="ltr" class="en" style="display:block;text-align:left;font-weight:500">' + esc(it.n) + "</span>" +
           (sub ? '<span dir="ltr" class="en small muted" style="display:block;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(sub) + "</span>" : "") +
@@ -947,10 +961,13 @@
       app.innerHTML = html;
       var input = document.getElementById("listFilter");
       input.addEventListener("input", function () {
-        var q = input.value.trim().toLowerCase();
+        var q = normText(input.value);
+        var toks = q.split(" ").filter(Boolean);
         var visible = 0;
         document.querySelectorAll("#entityList > div").forEach(function (row) {
-          var show = !q || row.getAttribute("data-search").indexOf(q) !== -1;
+          var hay = row.getAttribute("data-search") || "";
+          var show = !q || hay.indexOf(q) !== -1 ||
+            (toks.length > 1 && toks.every(function (tk) { return hay.indexOf(tk) !== -1; }));
           row.style.display = show ? "" : "none";
           if (show) visible++;
         });
@@ -1050,32 +1067,75 @@
     }
 
     /* ---------- search ---------- */
+    /* یکسان‌سازی متن برای جستجو: حروف عربی صفحه‌کلیدها (ي، ك، ة) به معادل فارسی برمی‌گردد
+       و نیم‌فاصله مثل فاصله حساب می‌شود تا «باج‌افزار» و «باج افزار» یکی حساب شوند. */
+    function normText(s) {
+      return String(s == null ? "" : s)
+        .replace(/ي/g, "ی")
+        .replace(/ك/g, "ک")
+        .replace(/ة/g, "ه")
+        .replace(/‌/g, " ")
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .trim();
+    }
     function searchInIndex(q) {
-      var ql = q.toLowerCase();
-      var results = [];
-      function rank(id, name) {
-        var i = id.toLowerCase(), n = name.toLowerCase();
-        return i === ql ? 0 : n.indexOf(ql) === 0 ? 1 : n.indexOf(ql) !== -1 ? 2 : 3;
+      var qn = normText(q);
+      var tokens = qn.split(" ").filter(Boolean);
+      var qid = qn.replace(/\//g, "."); // T1059/001 هم مثل T1059.001 پیدا شود
+      var strict = [], loose = [], seen = new Set();
+      function rankOf(idN, nameN) {
+        if (idN === qid) return 0;
+        if (nameN.indexOf(qn) === 0) return 1;
+        if (nameN.indexOf(qn) !== -1) return 2;
+        return 3;
       }
-      function consider(id, name, kind, extra) {
-        var hay = (name + " " + (extra || "")).toLowerCase();
-        if (id.toLowerCase().indexOf(ql) !== -1 || hay.indexOf(ql) !== -1) {
-          results.push({ attackId: id, name: name, kind: kind, rank: rank(id, name), snippet: "" });
+      function consider(id, name, kind, extra, badge) {
+        var idN = normText(id);
+        var hay = normText(name + " " + id + " " + (extra || ""));
+        var hit = idN.indexOf(qid) !== -1 || hay.indexOf(qn) !== -1 ||
+          (tokens.length > 1 && tokens.every(function (tk) { return hay.indexOf(tk) !== -1; }));
+        if (hit) {
+          seen.add(kind + ":" + id);
+          strict.push({ attackId: id, name: name, kind: kind, rank: rankOf(idN, normText(name)), snippet: "", badge: badge || "" });
+          return;
+        }
+        /* گذر دومِ شل‌تر: واژه اول و همه واژه‌ها جز یکی کافی است؛ این‌ها با رتبه پایین‌تر بعد از نتایج دقیق می‌آیند
+           (مثلاً «باج افزار» که در متن فارسی T1486 فقط واژه «باج» آمده است). */
+        if (tokens.length > 1 && hay.indexOf(tokens[0]) !== -1) {
+          var matched = tokens.filter(function (tk) { return hay.indexOf(tk) !== -1; }).length;
+          if (matched >= tokens.length - 1) {
+            loose.push({ attackId: id, name: name, kind: kind, matched: matched, badge: badge || "" });
+          }
         }
       }
-      TECH.forEach(function (t) { consider(t.i, t.n, "technique", IDX.fa[t.i] ? IDX.fa[t.i].fa : ""); });
+      IDX.tactics.forEach(function (t) {
+        var taId = (t.u || "").split("/").filter(Boolean).pop() || "";
+        consider(t.s, t.n, "tactic", (t.fa || "") + " " + (t.goal || ""), taId);
+      });
+      TECH.forEach(function (t) {
+        var f = IDX.fa[t.i];
+        consider(t.i, t.n, "technique", f ? (f.fa + " " + f.explain + " " + f.soc) : "");
+      });
       IDX.groups.forEach(function (g) { consider(g.i, g.n, "group", (g.a || []).join(" ")); });
-      IDX.software.forEach(function (s) { consider(s.i, s.n, "software", ""); });
-      IDX.mitigations.forEach(function (m) { consider(m.i, m.n, "mitigation", ""); });
+      IDX.software.forEach(function (s) { consider(s.i, s.n, "software", s.k || ""); });
+      IDX.mitigations.forEach(function (m) { consider(m.i, m.n, "mitigation", (IDX.faMit || {})[m.i] || ""); });
       IDX.campaigns.forEach(function (c) { consider(c.i, c.n, "campaign", ""); });
-      IDX.datasources.forEach(function (d) { consider(d.i, d.n, "datasource", ""); });
-      results.sort(function (a, b) { return a.rank - b.rank || a.name.localeCompare(b.name); });
-      return results;
+      IDX.datasources.forEach(function (d) { consider(d.i, d.n, "datasource", (IDX.faDs || {})[d.i] || ""); });
+      strict.sort(function (a, b) { return a.rank - b.rank || a.name.localeCompare(b.name); });
+      if (loose.length) {
+        loose = loose.filter(function (r) { return !seen.has(r.kind + ":" + r.attackId); });
+        loose.sort(function (a, b) { return b.matched - a.matched || a.name.localeCompare(b.name); });
+        loose.forEach(function (r) {
+          strict.push({ attackId: r.attackId, name: r.name, kind: r.kind, rank: 4, snippet: "", badge: r.badge || "" });
+        });
+      }
+      return strict;
     }
     function searchRowsHtml(results) {
       if (!results.length) return "";
       return '<div class="listbox">' + results.map(function (r) {
-        return '<button type="button" class="rowbtn" data-nav="' + routeFor(r.kind, r.attackId) + '">' + idBadge(r.attackId) +
+        return '<button type="button" class="rowbtn" data-nav="' + routeFor(r.kind, r.attackId) + '">' + idBadge(r.badge || r.attackId) +
           '<span dir="ltr" class="en grow" style="text-align:left;font-weight:500">' + esc(r.name) + "</span>" +
           '<span class="small muted" style="background:var(--surface2);border-radius:6px;padding:.1rem .45rem;white-space:nowrap">' + esc(KIND_FA[r.kind] || r.kind) + "</span></button>" +
           (r.snippet ? '<div dir="ltr" class="en small muted" style="padding:0 .7rem .6rem;text-align:left">' + esc(r.snippet) + "</div>" : "");
@@ -1086,7 +1146,7 @@
       var html = '<h2 class="page-title">نتایج جستجو برای ' + enSpan("“" + query + "”", "") +
         ' <span class="small muted">(' + faNum(results.length) + ")</span></h2>";
       if (results.length) html += '<div style="margin-top:.7rem">' + searchRowsHtml(results) + "</div>";
-      else html += '<p class="center-note">چیزی پیدا نشد. اسم انگلیسی یا ID را امتحان کن؛ مثلاً <span class="mono" dir="ltr">T1059</span> یا ' + enSpan("Phishing") + "</p>";
+      else html += '<p class="center-note">چیزی پیدا نشد. با اسم انگلیسی، اسم فارسی یا ID امتحان کن؛ مثلاً <span class="mono" dir="ltr">T1059</span>، ' + enSpan("Phishing") + " یا «فیشینگ». اگر واژه فقط داخل متن توضیحات آمده باشد، دکمه جستجوی عمیق پایین را بزن.</p>";
       html += '<button type="button" class="deep-btn" id="deepSearchBtn">جستجوی عمیق در متن توضیحات MITRE (انگلیسی)</button><div id="deepResults"></div>';
       app.innerHTML = html;
       document.getElementById("deepSearchBtn").addEventListener("click", function () {
